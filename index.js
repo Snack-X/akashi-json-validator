@@ -2,14 +2,18 @@
 // Internal functions
 
 function _lookup(lookupPath, data) {
-  let v = data;
+  let v = data, key;
 
   for(let k of lookupPath) {
+    if(!key) key = k;
+    else if(Array.isArray(v)) key += `[${k}]`;
+    else key += `->${k}`;
+
     if(k in v) v = v[k];
-    else throw `lookup fail: ${lookupPath.join("->")} does not exist`;
+    else throw `Invalid lookup - ${key} does not exist`;
   }
 
-  return v;
+  return { value: v, key: key };
 }
 
 function _validateObject(object, rules, key, valueContext) {
@@ -31,36 +35,33 @@ function _validateValue(value, rule, key, valueContext, parentKey) {
   delete parent[parentKey];
   context.$parent = parent;
 
+  let valueType;
+
   //============================================================================
   // Optional and required
 
-  if(rule.optional && !value) return;
-
   // == is intended to check both null and undefined
+  if(rule.optional && value == null) return;
   if(value == null)
     throw `Missing value - ${key} is required`;
 
   //============================================================================
   // Type
 
+  if(Array.isArray(value)) valueType = "array";
+  else if(typeof value === "number" && Number.isInteger(value)) valueType = "integer";
+  else valueType = typeof value;
+
   if("type" in rule) {
-    if(rule.type === "array") {
-      if(!Array.isArray(value)) {
-        throw `Type mismatch - ${key} is not array, but ${typeof value}`;
+    if(typeof rule.type === "string") {
+      if(rule.type !== valueType && !(rule.type === "number" && valueType === "integer")) {
+        throw `Type mismatch - ${key} is not ${rule.type}, but ${valueType}`;
       }
     }
-    else if(rule.type === "object") {
-      if(Array.isArray(value)) {
-        throw `Type mismatch - ${key} is not object, but array`;
+    else if(Array.isArray(rule.type)) {
+      if(!rule.type.includes(valueType) && !(!rule.type.includes("integer") && rule.type.includes("number") && valueType === "integer")) {
+        throw `Type mismatch - ${key} is not ${rule.type.join("|")}, but ${valueType}`;
       }
-    }
-    else if(rule.type === "integer") {
-      if(typeof value !== "number" || !Number.isInteger(value)) {
-        throw `Type mismatch - ${key} is not integer, but ${typeof value}`;
-      }
-    }
-    else if(typeof value !== rule.type) {
-      throw `Type mismatch - ${key} is not ${rule.type}, but ${typeof value}`;
     }
   }
 
@@ -70,24 +71,34 @@ function _validateValue(value, rule, key, valueContext, parentKey) {
   const eqValidType = ["boolean", "number", "string"];
 
   if("eq" in rule && eqValidType.includes(typeof value)) {
-    const expected = Array.isArray(rule.eq) ? _lookup(rule.eq, valueContext) : rule.eq;
+    let lookup, expected = rule.eq;
     const actual = value;
 
+    if(Array.isArray(expected)) {
+      lookup = _lookup(expected, valueContext);
+      expected = lookup.value;
+    }
+
     if(eqValidType.includes(typeof expected) && expected !== actual) {
-      let errMsg = `Value mismatch - ${key} should be ${JSON.stringify(expected)}, but ${JSON.stringify(actual)} was found`;
-      if(Array.isArray(rule.eq)) errMsg += ` from ${rule.eq.join("->")}`;
+      let errMsg = `Value mismatch - ${JSON.stringify(actual)} (from ${key}) should be ${JSON.stringify(expected)}`;
+      if(Array.isArray(rule.eq)) errMsg += ` (from ${lookup.key})`;
 
       throw errMsg;
     }
   }
 
   if("neq" in rule && eqValidType.includes(typeof value)) {
-    const expected = Array.isArray(rule.neq) ? _lookup(rule.neq, valueContext) : rule.neq;
+    let lookup, expected = rule.neq;
     const actual = value;
 
+    if(Array.isArray(expected)) {
+      lookup = _lookup(expected, valueContext);
+      expected = lookup.value;
+    }
+
     if(eqValidType.includes(typeof expected) && expected === actual) {
-      let errMsg = `Value match - ${key} should not be ${JSON.stringify(expected)}, but ${JSON.stringify(actual)} was found`;
-      if(Array.isArray(rule.neq)) errMsg += ` from ${rule.neq.join("->")}`;
+      let errMsg = `Value match - ${JSON.stringify(actual)} (from ${key}) should not be ${JSON.stringify(expected)}`;
+      if(Array.isArray(rule.neq)) errMsg += ` (from ${lookup.key})`;
 
       throw errMsg;
     }
@@ -97,44 +108,64 @@ function _validateValue(value, rule, key, valueContext, parentKey) {
   // Comparison
 
   if("gt" in rule && typeof value === "number") {
-    const compare = Array.isArray(rule.gt) ? _lookup(rule.gt, valueContext) : rule.gt;
+    let lookup, compare = rule.gt;
+
+    if(Array.isArray(compare)) {
+      lookup = _lookup(compare, valueContext);
+      compare = lookup.value;
+    }
 
     if(typeof compare === "number" && value <= compare) {
-      let errMsg = `${key} is invalid: ${value} should be greater than ${compare}`;
-      if(Array.isArray(rule.gt)) errMsg += ` (from ${rule.gt.join("->")})`;
+      let errMsg = `Comparison fail - ${value} (from ${key}) should be greater than ${compare}`;
+      if(Array.isArray(rule.gt)) errMsg += ` (from ${lookup.key})`;
 
       throw errMsg;
     }
   }
 
   if("gte" in rule && typeof value === "number") {
-    const compare = Array.isArray(rule.gte) ? _lookup(rule.gte, valueContext) : rule.gte;
+    let lookup, compare = rule.gte;
+
+    if(Array.isArray(compare)) {
+      lookup = _lookup(compare, valueContext);
+      compare = lookup.value;
+    }
 
     if(typeof compare === "number" && value < compare) {
-      let errMsg = `${key} is invalid: ${value} should be greater than or equal to ${compare}`;
-      if(Array.isArray(rule.gte)) errMsg += ` (from ${rule.gte.join("->")})`;
+      let errMsg = `Comparison fail - ${value} (from ${key}) should be greater than or equal to ${compare}`;
+      if(Array.isArray(rule.gte)) errMsg += ` (from ${lookup.key})`;
 
       throw errMsg;
     }
   }
 
   if("lt" in rule && typeof value === "number") {
-    const compare = Array.isArray(rule.lt) ? _lookup(rule.lt, valueContext) : rule.lt;
+    let lookup, compare = rule.lt;
+
+    if(Array.isArray(compare)) {
+      lookup = _lookup(compare, valueContext);
+      compare = lookup.value;
+    }
 
     if(typeof compare === "number" && value >= compare) {
-      let errMsg = `${key} is invalid: ${value} should be lesser than ${compare}`;
-      if(Array.isArray(rule.lt)) errMsg += ` (from ${rule.lt.join("->")})`;
+      let errMsg = `Comparison fail - ${value} (from ${key}) should be lesser than ${compare}`;
+      if(Array.isArray(rule.lt)) errMsg += ` (from ${lookup.key})`;
 
       throw errMsg;
     }
   }
 
   if("lte" in rule && typeof value === "number") {
-    const compare = Array.isArray(rule.lte) ? _lookup(rule.lte, valueContext) : rule.lte;
+    let lookup, compare = rule.lte;
+
+    if(Array.isArray(compare)) {
+      lookup = _lookup(compare, valueContext);
+      compare = lookup.value;
+    }
 
     if(typeof compare === "number" && value > compare) {
-      let errMsg = `${key} is invalid: ${value} should be lesser than or equal to ${compare}`;
-      if(Array.isArray(rule.lte)) errMsg += ` (from ${rule.lte.join("->")})`;
+      let errMsg = `Comparison fail - ${value} (from ${key}) should be lesser than or equal to ${compare}`;
+      if(Array.isArray(rule.lte)) errMsg += ` (from ${lookup.key})`;
 
       throw errMsg;
     }
@@ -144,7 +175,7 @@ function _validateValue(value, rule, key, valueContext, parentKey) {
   // One of these
 
   if("in" in rule && !rule.in.includes(value)) {
-    throw `${key} is invalid: ${value} should be one of ( ${rule.in.map(v => JSON.stringify(v)).join(" | ")} )`;
+    throw `Unexpected value: ${JSON.stringify(value)} (from ${key}) should be one of following: ${rule.in.map(v => JSON.stringify(v)).join(", ")}`;
   }
 
   //============================================================================
@@ -153,7 +184,7 @@ function _validateValue(value, rule, key, valueContext, parentKey) {
   if("unique" in rule) {
     if(!this.unique[rule.unique]) this.unique[rule.unique] = new Set();
     if(this.unique[rule.unique].has(value)) {
-      throw `${key} is invalid: ${value} should be unique for ${rule.unique}`;
+      throw `Duplicated value: ${JSON.stringify(value)} (from ${key}) should be unique as ${rule.unique}`;
     }
     else {
       this.unique[rule.unique].add(value);
@@ -165,9 +196,7 @@ function _validateValue(value, rule, key, valueContext, parentKey) {
 
   if("each" in rule && Array.isArray(value)) {
     value.forEach((v, i) => {
-      _
-
-      validateValue.call(this, v, rule.each, `${key}[${i}]`, context, parentKey)
+      _validateValue.call(this, v, rule.each, `${key}[${i}]`, context, parentKey)
     });
   }
 
