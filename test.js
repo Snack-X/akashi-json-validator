@@ -261,6 +261,11 @@ describe("JsonValidator", () => {
           { a: 1, b: true, c: "1" },
           [{ key: "a", unique: "value" }, { key: "b", unique: "value" }, { key: "c", unique: "value" }]
         );
+
+        expectSuccess(
+          { a: 1, b: 1 },
+          [{ key: "a", unique: "value1" }, { key: "b", unique: "value2" }]
+        );
       });
 
       it("SHOULD NOT success when value is NOT unique using `unique` rule", () => {
