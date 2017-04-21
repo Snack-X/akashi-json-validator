@@ -102,6 +102,11 @@ describe("JsonValidator", () => {
         expectFail({ a: 3.14   }, [{ key: "a", type: "integer" }], "Type mismatch");
         expectFail({ a: "42"   }, [{ key: "a", type: "number"  }], "Type mismatch");
         expectFail({ a: []     }, [{ key: "a", type: "object"  }], "Type mismatch");
+
+        expectFail({ a: true }, [{ key: "a", type: [ "number", "string"  ]} ], "Type mismatch");
+        // number != integer
+        expectFail({ a: 3.14 }, [{ key: "a", type: [ "integer", "string" ]} ], "Type mismatch");
+        expectFail({ a: "1"  }, [{ key: "a", type: [ "number", "integer" ]} ], "Type mismatch");
       });
     });
 

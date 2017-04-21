@@ -1,8 +1,12 @@
 # JSON Validator
 
-Yet another stupid JSON/Object validator.
+[![akashi-json-validator from NPM](https://img.shields.io/npm/v/akashi-json-validator.svg)](https://www.npmjs.com/package/akashi-json-validator)
+
+Yet another *stupid* JSON/Object validator.
 
 Made for Akashi project to validate project/pattern files.
+
+**NOTICE**: This module will support Node.js version from 6.9.0 (LTS Boron)
 
 # Usage
 

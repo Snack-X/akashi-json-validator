@@ -1,15 +1,17 @@
 {
   "name": "akashi-json-validator",
-  "version": "0.0.1",
-  "description": "Yet Another JSON Validator",
+  "version": "1.0.1",
+  "description": "Yet Another JSON/Object Validator",
   "author": "Snack <korsnack@korsnack.kr>",
   "license": "MIT",
   "main": "index.js",
   "devDependencies": {
     "chai": "^3.5.0",
-    "mocha": "^3.2.0"
+    "mocha": "^3.2.0",
+    "nyc": "^10.2.0"
   },
   "scripts": {
-    "test": "mocha"
-  }
+    "test": "nyc --reporter=html --reporter=text mocha"
+  },
+  "engines": ">= 6.9.0"
 }
