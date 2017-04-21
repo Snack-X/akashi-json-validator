@@ -22,36 +22,36 @@ describe("JsonValidator", () => {
     });
 
     it("SHOULD NOT success when input is NOT <String|Buffer>", () => {
-      expectFail({}, [], "Bad input", validateJson);
-      expectFail(1234, [], "Bad input", validateJson);
-      expectFail(true, [], "Bad input", validateJson);
-      expectFail(null, [], "Bad input", validateJson);
+      expectFail({},        [], "Bad input", validateJson);
+      expectFail(1234,      [], "Bad input", validateJson);
+      expectFail(true,      [], "Bad input", validateJson);
+      expectFail(null,      [], "Bad input", validateJson);
       expectFail(undefined, [], "Bad input", validateJson);
     });
 
     it("SHOULD NOT success when rule  is NOT <Array>", () => {
-      expectFail("{}", {}, "Bad argument", validateJson);
+      expectFail("{}", {},   "Bad argument", validateJson);
       expectFail("{}", true, "Bad argument", validateJson);
     });
   });
 
   describe("#validateObject()", () => {
     it("SHOULD     success when input is     <Object>", () => {
-      expectSuccess({}, []);
+      expectSuccess({},             []);
       expectSuccess({ a: 1, b: 2 }, []);
     });
 
     it("SHOULD NOT success when input is NOT <Object>", () => {
-      expectFail("{}", [], "Bad input");
-      expectFail(1234, [], "Bad input");
-      expectFail(true, [], "Bad input");
-      expectFail([], [], "Bad input");
-      expectFail(null, [], "Bad input");
+      expectFail("{}",      [], "Bad input");
+      expectFail(1234,      [], "Bad input");
+      expectFail(true,      [], "Bad input");
+      expectFail([],        [], "Bad input");
+      expectFail(null,      [], "Bad input");
       expectFail(undefined, [], "Bad input");
     });
 
     it("SHOULD NOT success when rule  is NOT <Array>", () => {
-      expectFail({}, {}, "Bad argument");
+      expectFail({}, {},   "Bad argument");
       expectFail({}, true, "Bad argument");
     });
   });
@@ -82,6 +82,7 @@ describe("JsonValidator", () => {
       it("SHOULD     success when type is     matching", () => {
         expectSuccess({ a: true }, [{ key: "a", type: "boolean" }]);
         expectSuccess({ a: 3.14 }, [{ key: "a", type: "number"  }]);
+        // 3 is detected as integer type, but number type covers the integer type
         expectSuccess({ a: 3    }, [{ key: "a", type: "number"  }]);
         expectSuccess({ a: 42   }, [{ key: "a", type: "integer" }]);
         expectSuccess({ a: "1"  }, [{ key: "a", type: "string"  }]);
@@ -90,12 +91,14 @@ describe("JsonValidator", () => {
 
         expectSuccess({ a: true }, [{ key: "a", type: [ "boolean", "number", "string" ]} ]);
         expectSuccess({ a: 3.14 }, [{ key: "a", type: [ "boolean", "number", "string" ]} ]);
+        // 3 is detected as integer type, but number type covers the integer type
         expectSuccess({ a: 3    }, [{ key: "a", type: [ "boolean", "number", "string" ]} ]);
         expectSuccess({ a: "1"  }, [{ key: "a", type: [ "boolean", "number", "string" ]} ]);
       });
 
       it("SHOULD not success when type is NOT matching", () => {
         expectFail({ a: "true" }, [{ key: "a", type: "boolean" }], "Type mismatch");
+        // 3.14 is not an integer
         expectFail({ a: 3.14   }, [{ key: "a", type: "integer" }], "Type mismatch");
         expectFail({ a: "42"   }, [{ key: "a", type: "number"  }], "Type mismatch");
         expectFail({ a: []     }, [{ key: "a", type: "object"  }], "Type mismatch");
@@ -111,6 +114,7 @@ describe("JsonValidator", () => {
       });
 
       it("SHOULD NOT success when two value is NOT strictly same using `eq`  rule", () => {
+        // Strict type comparison
         expectFail({ a: true   }, [{ key: "a", eq: "true" }], "Value mismatch");
         expectFail({ a: true   }, [{ key: "a", eq: 1      }], "Value mismatch");
         expectFail({ a: 1      }, [{ key: "a", eq: "1"    }], "Value mismatch");
@@ -228,7 +232,6 @@ describe("JsonValidator", () => {
         expectFail({ a: 0.1, b: 0.2 }, [{ key: "b", lt:  ["a"] }], "Comparison fail");
         expectFail({ a: 1,   b: 2   }, [{ key: "b", lte: ["a"] }], "Comparison fail");
         expectFail({ a: 0.1, b: 0.2 }, [{ key: "b", lte: ["a"] }], "Comparison fail");
-
       });
     });
 
@@ -243,6 +246,7 @@ describe("JsonValidator", () => {
       it("SHOULD NOT success when value is NOT in between of values using `in` rule", () => {
         expectFail({ a: 4    }, [{ key: "a", in: [1, 2, 3]        }], "Unexpected value");
         expectFail({ a: "4"  }, [{ key: "a", in: ["1", "2", "3"]  }], "Unexpected value");
+        // Correct type
         expectFail({ a: 0    }, [{ key: "a", in: [false, "0", ""] }], "Unexpected value");
       });
 
@@ -257,11 +261,13 @@ describe("JsonValidator", () => {
           [{ key: "a", unique: "value" }, { key: "b", unique: "value" }]
         );
 
+        // Type strict
         expectSuccess(
           { a: 1, b: true, c: "1" },
           [{ key: "a", unique: "value" }, { key: "b", unique: "value" }, { key: "c", unique: "value" }]
         );
 
+        // Different uniqueness scope
         expectSuccess(
           { a: 1, b: 1 },
           [{ key: "a", unique: "value1" }, { key: "b", unique: "value2" }]
@@ -469,6 +475,16 @@ describe("JsonValidator", () => {
           }]
         );
 
+        // Scope of the INPUT.a's each elements, is the array itself
+        // So [0] resolves to INPUT.a[0]
+        expectSuccess(
+          { a: [1, 1, 1] },
+          [{ key: "a", each: { eq: [0] } }]
+        );
+
+        // Scope of the INPUT.b.c.d's each elements, is the array itself
+        // Parent scope is the object which is containing the property `d`
+        // So $parent.$parent.$parent.a resolves to INPUT.a
         expectSuccess(
           { a: 1, b: { c: { d: [2, 3, 4] } } },
           [{ key: "b", child:
@@ -507,8 +523,5 @@ describe("JsonValidator", () => {
         );
       });
     });
-
-    //==========================================================================
-    // Comparison
   });
 });
